@@ -1,0 +1,38 @@
+# Dependencies and generated frontend assets
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Rust/Tauri build products and generated schemas
+src-tauri/target/
+src-tauri/gen/
+
+# Logs, diagnostics, and runtime files
+*.log
+*.log.*
+*.pid
+*.seed
+coverage/
+.nyc_output/
+
+# Environment-specific configuration and secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Editor and operating-system metadata
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.code-workspace
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~

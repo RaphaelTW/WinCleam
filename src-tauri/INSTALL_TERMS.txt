@@ -1,0 +1,61 @@
+WINCLEAM 2.0 — TERMOS E AVISOS DE INSTALAÇÃO
+UTF-8 · 🇧🇷 Português (Brasil) · English (United Kingdom) · Español · Русский · 简体中文
+
+────────────────────────────────────────────────────────
+🇧🇷 PORTUGUÊS (BRASIL)
+────────────────────────────────────────────────────────
+O WinCleam é uma ferramenta local de manutenção do Windows.
+Os comandos só serão executados após sua seleção e confirmação.
+Algumas operações exigem privilégios de administrador e podem
+alterar arquivos do sistema, configurações de rede ou discos.
+Antes de reparar discos com CHKDSK /f, faça backup dos dados.
+O WinCleam não garante aumento de FPS nem melhoria de desempenho.
+RAMMap e Process Lasso são aplicativos de terceiros e não estão
+incluídos nesta instalação.
+O código-fonte do WinCleam é distribuído sob a licença MIT.
+
+────────────────────────────────────────────────────────
+ENGLISH (UNITED KINGDOM)
+────────────────────────────────────────────────────────
+WinCleam is a local Windows maintenance application.
+System operations run only after you select and confirm them.
+Some operations require administrator privileges and may change
+system files, network settings or disk contents. Back up your data
+before using CHKDSK /f to repair drives. WinCleam does not guarantee
+better FPS or performance. RAMMap and Process Lasso are third-party
+programmes and are not included in this installer.
+WinCleam source code is distributed under the MIT Licence.
+
+────────────────────────────────────────────────────────
+ESPAÑOL
+────────────────────────────────────────────────────────
+WinCleam es una aplicación local de mantenimiento de Windows.
+Las operaciones solo se ejecutan después de su selección y
+confirmación. Algunas requieren permisos de administrador y pueden
+modificar archivos del sistema, la red o los discos. Realice una
+copia de seguridad antes de reparar con CHKDSK /f. WinCleam no
+garantiza mejoras de FPS ni de rendimiento. RAMMap y Process Lasso
+son programas de terceros y no se incluyen en esta instalación.
+El código fuente de WinCleam se distribuye bajo licencia MIT.
+
+────────────────────────────────────────────────────────
+РУССКИЙ
+────────────────────────────────────────────────────────
+WinCleam — локальная программа обслуживания Windows.
+Команды выполняются только после выбора и подтверждения.
+Некоторым операциям необходимы права администратора; они могут
+изменить системные файлы, сеть или дисковые данные. Создайте
+резервную копию перед восстановлением CHKDSK /f. WinCleam не
+гарантирует повышение FPS или быстродействия. RAMMap и Process Lasso
+— сторонние программы, они не входят в данный установщик.
+Исходный код WinCleam распространяется по лицензии MIT.
+
+────────────────────────────────────────────────────────
+简体中文
+────────────────────────────────────────────────────────
+WinCleam 是一款本地 Windows 维护应用程序。
+系统操作仅在您选择并确认后执行。某些操作需要管理员权限，
+并可能更改系统文件、网络设置或磁盘内容。使用 CHKDSK /f
+修复驱动器前请备份数据。WinCleam 不保证提高 FPS 或性能。
+RAMMap 和 Process Lasso 是第三方程序，不包含在本安装程序中。
+WinCleam 源代码根据 MIT 许可证发布。

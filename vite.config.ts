@@ -1,0 +1,11 @@
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  clearScreen: false,
+  server: {
+    port: 1420,
+    strictPort: true,
+    host: '127.0.0.1'
+  },
+  build: { target: process.env.TAURI_ENV_PLATFORM === 'windows' ? 'chrome105' : 'es2022' }
+});

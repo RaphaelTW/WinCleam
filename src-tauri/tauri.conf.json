@@ -1,0 +1,47 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "WinCleam",
+  "version": "2.0.0",
+  "identifier": "com.raphaellaurentino.wincleam",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "npm run build:web",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "WinCleam · Maintenance Studio",
+        "width": 1360,
+        "height": 860,
+        "minWidth": 560,
+        "minHeight": 580,
+        "center": true,
+        "backgroundColor": "#10111F"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src ipc: http://ipc.localhost https://api.github.com; object-src 'none'; base-uri 'none'",
+      "devCsp": "default-src 'self' http://127.0.0.1:1420; img-src 'self' data: http://127.0.0.1:1420; script-src 'self' 'unsafe-eval' http://127.0.0.1:1420; style-src 'self' 'unsafe-inline' http://127.0.0.1:1420; connect-src ipc: http://ipc.localhost ws://127.0.0.1:1420 http://127.0.0.1:1420"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "licenseFile": "INSTALL_TERMS.txt",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+    "shortDescription": "Manutenção, diagnóstico e monitoramento do Windows",
+    "longDescription": "WinCleam: manutenção Windows com interface multilíngue e tema personalizável.",
+    "windows": {
+      "nsis": {
+        "installMode": "perMachine",
+        "languages": ["PortugueseBR", "English", "Spanish", "Russian", "SimpChinese"],
+        "displayLanguageSelector": true
+      },
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      }
+    }
+  }
+}

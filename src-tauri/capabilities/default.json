@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-capability",
+  "description": "A interface acessa somente os comandos Rust predefinidos.",
+  "windows": ["main"],
+  "permissions": ["core:default", "core:event:allow-listen"]
+}

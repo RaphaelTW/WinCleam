@@ -1,0 +1,30 @@
+{
+  "name": "wincleam-tauri",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "description": "WinCleam — manutenção Windows com Tauri 2, Rust e React",
+  "scripts": {
+    "dev": "vite",
+    "build:web": "tsc -b && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "dev:desktop": "tauri dev",
+    "build:win": "tauri build --bundles nsis",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@jonasdoesthings/react-activity-rings": "1.2.0",
+    "@tauri-apps/api": "^2.0.0",
+    "lucide-react": "^0.468.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  }
+}
