@@ -13,6 +13,7 @@ use std::{
         Arc, Mutex, OnceLock,
     },
     thread,
+    time::{Duration, Instant},
 };
 use sysinfo::System;
 use tauri::{
@@ -55,6 +56,28 @@ struct Snapshot {
     memory_used: u64,
     cpu_count: usize,
     os_name: String,
+    temperatures: Temperatures,
+}
+
+#[derive(Default, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct Temperatures {
+    cpu: Option<f32>,
+    gpu: Option<f32>,
+    motherboard: Option<f32>,
+    memory: Option<f32>,
+}
+
+#[derive(Default)]
+struct TemperatureCache {
+    value: Option<(Instant, Temperatures)>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct HardwareMonitorStatus {
+    detected: bool,
+    checked_at: String,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -79,6 +102,11 @@ struct Step {
     executable: PathBuf,
     args: Vec<String>,
     answer_prompt: bool,
+}
+
+#[derive(Deserialize)]
+struct CatalogTask {
+    id: String,
 }
 
 fn emit(app: &AppHandle, value: Value) {
@@ -130,7 +158,10 @@ fn write_log(app: &AppHandle, id: &str, message: &str) {
             );
         }
     }
-    emit(app, json!({"kind": "log", "taskId": id, "message": line}));
+    emit(app, json!({
+        "kind": "log", "taskId": id,
+        "message": summarize_log_line(&line), "rawMessage": line
+    }));
     static PERCENT: OnceLock<Regex> = OnceLock::new();
     let regex = PERCENT.get_or_init(|| Regex::new(r"(\d{1,3})(?:[.,]\d+)?\s*%").unwrap());
     if let Some(capture) = regex.captures(&line) {
@@ -143,6 +174,18 @@ fn write_log(app: &AppHandle, id: &str, message: &str) {
             }
         }
     }
+}
+
+fn summarize_log_line(line: &str) -> String {
+    let compact = line.split_whitespace().collect::<Vec<_>>().join(" ");
+    if compact.contains('<') && compact.contains('>') {
+        return "Saída técnica estruturada registrada. Abra a saída bruta para consultar o conteúdo.".into();
+    }
+    if compact.len() > 260 {
+        let end = compact.floor_char_boundary(257);
+        return format!("{}…", &compact[..end]);
+    }
+    compact
 }
 
 fn sys_exe(name: &str) -> PathBuf {
@@ -237,8 +280,51 @@ fn bootstrap(app: AppHandle) -> Bootstrap {
     }
 }
 
+fn read_temperatures(cache: &Mutex<TemperatureCache>) -> Temperatures {
+    let mut cache = match cache.lock() { Ok(value) => value, Err(_) => return Temperatures::default() };
+    if let Some((updated, value)) = &cache.value {
+        if updated.elapsed() < Duration::from_secs(30) { return value.clone(); }
+    }
+    let script = "Get-CimInstance -Namespace root/LibreHardwareMonitor -ClassName Sensor -ErrorAction SilentlyContinue | Where-Object { $_.SensorType -eq 'Temperature' } | Select-Object Name,Value | ConvertTo-Json -Compress";
+    let mut temperatures = Temperatures::default();
+    if cfg!(windows) {
+        if let Ok(result) = ps_command(script).output() {
+            if result.status.success() {
+                let output = String::from_utf8_lossy(&result.stdout);
+                temperatures = parse_temperatures(&output);
+            }
+        }
+    }
+    cache.value = Some((Instant::now(), temperatures.clone()));
+    temperatures
+}
+
 #[tauri::command]
-fn system_snapshot(system: State<'_, Mutex<System>>) -> Result<Snapshot, String> {
+fn hardware_monitor_status() -> HardwareMonitorStatus {
+    let script = "if (Get-CimInstance -Namespace root/LibreHardwareMonitor -ClassName Sensor -ErrorAction SilentlyContinue | Select-Object -First 1) { 'detected' }";
+    let detected = cfg!(windows) && ps_command(script).output()
+        .map(|output| output.status.success() && String::from_utf8_lossy(&output.stdout).contains("detected"))
+        .unwrap_or(false);
+    HardwareMonitorStatus { detected, checked_at: Local::now().to_rfc3339() }
+}
+
+fn parse_temperatures(json: &str) -> Temperatures {
+    let Ok(value) = serde_json::from_str::<Value>(json.trim()) else { return Temperatures::default(); };
+    let items = match value { Value::Array(items) => items, Value::Object(_) => vec![value], _ => vec![] };
+    let mut temperatures = Temperatures::default();
+    for item in items {
+        let name = item.get("Name").and_then(Value::as_str).unwrap_or("").to_ascii_lowercase();
+        let value = item.get("Value").and_then(Value::as_f64).map(|v| v as f32).filter(|v| (0.0..=130.0).contains(v));
+        if name.contains("cpu") || name.contains("package") { temperatures.cpu = temperatures.cpu.or(value); }
+        else if name.contains("gpu") { temperatures.gpu = temperatures.gpu.or(value); }
+        else if name.contains("mainboard") || name.contains("motherboard") { temperatures.motherboard = temperatures.motherboard.or(value); }
+        else if name.contains("memory") || name.contains("ram") || name.contains("dimm") { temperatures.memory = temperatures.memory.or(value); }
+    }
+    temperatures
+}
+
+#[tauri::command]
+fn system_snapshot(system: State<'_, Mutex<System>>, temperatures: State<'_, Mutex<TemperatureCache>>) -> Result<Snapshot, String> {
     let mut sys = system.lock().map_err(|_| "System monitor unavailable".to_string())?;
     sys.refresh_memory();
     sys.refresh_cpu();
@@ -252,6 +338,7 @@ fn system_snapshot(system: State<'_, Mutex<System>>) -> Result<Snapshot, String>
         } else {
             "Preview".to_string()
         },
+        temperatures: read_temperatures(&temperatures),
     })
 }
 
@@ -416,24 +503,15 @@ async fn export_log(app: AppHandle) -> Result<bool, String> {
 }
 
 fn known_task(id: &str) -> bool {
-    crate::cleanup::is_cleanup_task(id) || matches!(
-        id,
-        "dism-check"
-            | "dism-scan"
-            | "dism-restore"
-            | "sfc"
-            | "components"
-            | "cleanmgr-config"
-            | "cleanmgr-run"
-            | "chkdsk-scan"
-            | "chkdsk-f"
-            | "defrag"
-            | "flushdns"
-            | "renewip"
-            | "winget-list"
-            | "winget-upgrade"
-            | "rammap-empty"
-    )
+    static CATALOG: OnceLock<HashSet<String>> = OnceLock::new();
+    let catalog = CATALOG.get_or_init(|| {
+        serde_json::from_str::<Vec<CatalogTask>>(include_str!("../../shared/tasks.json"))
+            .expect("shared task catalog must be valid JSON")
+            .into_iter()
+            .map(|task| task.id)
+            .collect()
+    });
+    catalog.contains(id)
 }
 
 fn step(program: &str, arguments: &[&str]) -> Step {
@@ -798,6 +876,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(Arc::new(Runner::default()))
         .manage(Mutex::new(system))
+        .manage(Mutex::new(TemperatureCache::default()))
         .setup(|app| Ok(setup_tray(app)?))
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
@@ -808,6 +887,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             bootstrap,
             system_snapshot,
+            hardware_monitor_status,
             list_drives,
             choose_external_tool,
             open_external_tool,
@@ -844,5 +924,26 @@ mod tests {
     fn vendors_have_strict_executable_names() {
         assert!(accepted_tool_name("rammap", Path::new("C:\\Tools\\RAMMap64.exe")));
         assert!(!accepted_tool_name("rammap", Path::new("C:\\Windows\\System32\\cmd.exe")));
+    }
+
+    #[test]
+    fn temperature_parser_classifies_supported_sensors() {
+        let readings = parse_temperatures(r#"[{"Name":"CPU Package","Value":61.2},{"Name":"GPU Core","Value":52},{"Name":"Motherboard","Value":38},{"Name":"DIMM","Value":41}]"#);
+        assert_eq!(readings.cpu, Some(61.2));
+        assert_eq!(readings.gpu, Some(52.0));
+        assert_eq!(readings.motherboard, Some(38.0));
+        assert_eq!(readings.memory, Some(41.0));
+    }
+
+    #[test]
+    fn temperature_parser_rejects_invalid_payloads_and_values() {
+        assert!(parse_temperatures("not json").cpu.is_none());
+        assert!(parse_temperatures(r#"{"Name":"CPU Package","Value":999}"#).cpu.is_none());
+    }
+
+    #[test]
+    fn log_summary_hides_markup_but_keeps_normal_output() {
+        assert!(summarize_log_line("<root><entry>internal</entry></root>").contains("Saída técnica"));
+        assert_eq!(summarize_log_line("Operation completed: 100%"), "Operation completed: 100%");
     }
 }

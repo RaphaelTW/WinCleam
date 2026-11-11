@@ -1,7 +1,7 @@
 {
   "name": "wincleam-tauri",
   "private": true,
-  "version": "2.0.0",
+  "version": "2.0.10",
   "type": "module",
   "description": "WinCleam — manutenção Windows com Tauri 2, Rust e React",
   "scripts": {

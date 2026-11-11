@@ -12,6 +12,7 @@ const cleaner = read('src-tauri/src/cleanup.rs');
 const app = read('src/App.tsx');
 const css = read('src/styles.css');
 const model = read('src/model.ts');
+const taskCatalog = read('shared/tasks.json');
 const i18n = read('src/i18n.ts');
 
 test('Tauri 2 and actual React Activity Rings are used', () => {
@@ -19,7 +20,7 @@ test('Tauri 2 and actual React Activity Rings are used', () => {
   assert.match(pkg.dependencies.react, /^18\./);
   assert.match(app, /import\s*\{\s*ActivityRings\s*\}/);
   assert.match(app, /<ActivityRings\s/);
-  assert.equal(config.version, '2.0.0');
+  assert.equal(config.version, '2.0.10');
   assert.equal(config.bundle.targets[0], 'nsis');
 });
 
@@ -43,7 +44,7 @@ test('CHKDSK only accepts validated system-discovered drives', () => {
   assert.match(source, /fn valid_letter\(/);
   assert.match(source, /selected_drives\(&request\.disk_target\)/);
   assert.match(source, /request\.repair_acknowledged/);
-  assert.match(model, /'chkdsk-f'/);
+  assert.match(taskCatalog, /"chkdsk-f"/);
   assert.match(app, /value="all"/);
   assert.match(app, /repairConfirmed/);
 });
@@ -61,7 +62,7 @@ test('Commands run in hidden native process and with a fixed allowlist', () => {
 test('Eight new cleaners are individually selectable and safely constrained', () => {
   for (const id of ['temp-user', 'temp-windows', 'thumbcache-user',
     'browser-edge', 'browser-firefox', 'browser-vivaldi', 'browser-brave', 'browser-chrome']) {
-    assert.ok(model.includes(`id: '${id}'`), `UI task ${id}`);
+    assert.ok(taskCatalog.includes(`"id":"${id}"`), `UI task ${id}`);
     assert.ok(cleaner.includes(`"${id}"`), `backend cleanup ${id}`);
     assert.ok(i18n.includes(`'${id}':`), `translation ${id}`);
   }
@@ -74,9 +75,8 @@ test('Eight new cleaners are individually selectable and safely constrained', ()
 });
 
 test('Responsive themes have animated aura and reduced-motion fallback', () => {
-  for (const theme of ['light', 'ember', 'neon']) {
-    assert.ok(css.includes(`data-theme='${theme}'`));
-  }
+  assert.ok(css.includes("data-theme='light'"));
+  assert.match(css, /:root\s*\{/);
   assert.match(css, /@keyframes aura-/);
   assert.match(css, /backdrop-filter: blur/);
   assert.match(css, /max-width: 760px/);

@@ -1,6 +1,6 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import type { BootstrapInfo, DriveInfo, MaintenanceEvent, RunRequest, SystemSnapshot } from './model';
+import type { BootstrapInfo, DriveInfo, HardwareMonitorStatus, MaintenanceEvent, RunRequest, SystemSnapshot } from './model';
 
 export const desktop = isTauri();
 
@@ -8,7 +8,7 @@ export const bridge = {
   async bootstrap(): Promise<BootstrapInfo> {
     return desktop
       ? invoke<BootstrapInfo>('bootstrap')
-      : { isAdmin: false, isWindows: false, version: '2.0.0', preferences: {} };
+      : { isAdmin: false, isWindows: false, version: '2.0.10', preferences: {} };
   },
   async drives(): Promise<DriveInfo[]> {
     return desktop ? invoke<DriveInfo[]>('list_drives') : [
@@ -24,8 +24,13 @@ export const bridge = {
       memoryTotal: 16 * 1024 ** 3,
       memoryUsed: (6.1 + Math.abs(Math.sin(now / 2)) * 1.1) * 1024 ** 3,
       cpuCount: 4,
-      osName: 'Prévia visual'
+      osName: 'Prévia visual',
+      temperatures: { cpu: 54, gpu: 48, motherboard: 39, memory: 42 }
     };
+  },
+  async hardwareMonitorStatus(): Promise<HardwareMonitorStatus> {
+    if (desktop) return invoke<HardwareMonitorStatus>('hardware_monitor_status');
+    return { detected: false, checkedAt: new Date().toISOString() };
   },
   async start(request: RunRequest): Promise<void> {
     if (!desktop) throw new Error('Modo de demonstração: execute pelo Tauri no Windows.');

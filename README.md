@@ -23,12 +23,13 @@ O WinCleam é um aplicativo desktop para diagnosticar, limpar e manter o Windows
 - [Build e distribuição](#build-e-distribuição)
 - [Atualizações e bandeja do sistema](#atualizações-e-bandeja-do-sistema)
 - [Estrutura do projeto](#estrutura-do-projeto)
+- [Changelog](CHANGELOG.md)
 
 ## Começar rapidamente
 
 ### Para usar o instalador
 
-Para usar o `WinCleam_2.0.0_x64-setup.exe`, é necessário apenas Windows 10 ou 11 de 64 bits. O instalador solicita permissão de administrador e instala o WebView2 quando necessário. Não é preciso instalar Node.js, Rust ou Visual Studio para usar o aplicativo já compilado.
+Para usar o `WinCleam_2.0.10_x64-setup.exe`, é necessário apenas Windows 10 ou 11 de 64 bits. O instalador solicita permissão de administrador e instala o WebView2 quando necessário. Não é preciso instalar Node.js, Rust ou Visual Studio para usar o aplicativo já compilado.
 
 ### Para executar pelo código-fonte ou gerar o instalador
 

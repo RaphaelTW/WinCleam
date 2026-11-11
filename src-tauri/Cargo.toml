@@ -1,10 +1,16 @@
 [package]
 name = "wincleam"
-version = "2.0.0"
+version = "2.0.10"
 description = "WinCleam Windows maintenance utility"
 authors = ["WinCleam"]
 edition = "2021"
 build = "build.rs"
+
+[[bin]]
+name = "wincleam"
+path = "src/main.rs"
+test = false
+bench = false
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

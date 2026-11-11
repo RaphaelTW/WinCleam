@@ -12,7 +12,7 @@ import type { LucideIcon } from 'lucide-react';
 import { bridge, desktop } from './bridge';
 import { translations, translate, translateTask } from './i18n';
 import type {
-  BootstrapInfo, Category, DriveInfo, Language, MaintenanceEvent,
+  BootstrapInfo, Category, DriveInfo, HardwareMonitorStatus, Language, MaintenanceEvent,
   SystemSnapshot, TaskDefinition, Theme
 } from './model';
 import { CATEGORIES, TASKS } from './model';
@@ -31,15 +31,11 @@ const categoryIcon: Record<Category, IconType> = {
 const THEMES: { id: Theme; colors: [string, string]; label: string }[] = [
   { id: 'system', colors: ['#f1f2f8', '#354367'], label: 'themesSystem' },
   { id: 'light', colors: ['#ffffff', '#6b8dff'], label: 'themesLight' },
-  { id: 'dark', colors: ['#171b30', '#919afd'], label: 'themesDark' },
-  { id: 'ember', colors: ['#181015', '#ff365e'], label: 'themesEmber' },
-  { id: 'neon', colors: ['#221638', '#70ffb2'], label: 'themesNeon' }
+  { id: 'dark', colors: ['#171b30', '#919afd'], label: 'themesDark' }
 ];
 const RING_COLORS: Record<string, [string, string, string]> = {
   light: ['#ff5c85', '#8e7ef4', '#2fcbbd'],
   dark: ['#fa547a', '#b28fff', '#5bdac7'],
-  ember: ['#ff3157', '#ff8a48', '#ffcc74'],
-  neon: ['#be79ff', '#63ffc3', '#8e9fff']
 };
 
 function getPreference<T extends string>(key: string, fallback: T, valid: readonly T[]): T {
@@ -57,7 +53,8 @@ function formatSize(bytes: number): string {
 }
 
 const baseSnapshot: SystemSnapshot = {
-  cpuPercent: 0, memoryTotal: 0, memoryUsed: 0, cpuCount: 0, osName: 'Windows'
+  cpuPercent: 0, memoryTotal: 0, memoryUsed: 0, cpuCount: 0, osName: 'Windows',
+  temperatures: { cpu: null, gpu: null, motherboard: null, memory: null }
 };
 
 type GitHubRelease = { tag_name?: string; html_url?: string; prerelease?: boolean; draft?: boolean };
@@ -105,12 +102,17 @@ export default function App() {
   const [total, setTotal] = useState(0);
   const [outcomes, setOutcomes] = useState<Record<string, boolean>>({});
   const [results, setResults] = useState<{ completed: number; failed: number; skipped: number } | null>(null);
-  const [logs, setLogs] = useState<{ id: number; content: string; taskId: string }[]>([]);
+  const [logs, setLogs] = useState<{ id: number; content: string; raw: string; taskId: string }[]>([]);
   const [showConfirm, setShowConfirm] = useState(false);
   const [repairConfirmed, setRepairConfirmed] = useState(false);
   const [notice, setNotice] = useState('');
   const [currentSection, setCurrentSection] = useState('overview');
   const [showSettings, setShowSettings] = useState(false);
+  const [showTemperatures, setShowTemperatures] = useState(false);
+  const [showLog, setShowLog] = useState(false);
+  const [showRawLog, setShowRawLog] = useState(false);
+  const [toolsUpdateTab, setToolsUpdateTab] = useState<'updates' | 'drivers' | 'external'>('updates');
+  const [hardwareMonitor, setHardwareMonitor] = useState<HardwareMonitorStatus | null>(null);
   const [availableRelease, setAvailableRelease] = useState<string | null>(null);
   const logCounter = useRef(0);
   const logEnd = useRef<HTMLDivElement | null>(null);
@@ -167,6 +169,11 @@ export default function App() {
   }, [bootstrap?.version]);
 
   useEffect(() => {
+    if (!showSettings) return;
+    void bridge.hardwareMonitorStatus().then(setHardwareMonitor).catch(() => setHardwareMonitor(null));
+  }, [showSettings]);
+
+  useEffect(() => {
     let alive = true;
     const poll = () => bridge.snapshot()
       .then(data => { if (alive) setStats(data); })
@@ -180,6 +187,7 @@ export default function App() {
     switch (event.kind) {
       case 'run-start':
         setRunning(true);
+        setShowLog(true);
         setResults(null);
         setTotal(event.total || event.ids?.length || 0);
         setFinished(0);
@@ -203,6 +211,7 @@ export default function App() {
         setLogs(current => [...current.slice(-299), {
           id: ++logCounter.current,
           content: event.message || '',
+          raw: event.rawMessage || event.message || '',
           taskId: event.taskId || ''
         }]);
         break;
@@ -352,11 +361,14 @@ export default function App() {
           <button className={`nav-entry ${currentSection === 'overview' ? 'active' : ''}`} onClick={() => scrollTo('overview')}>
             <Gauge size={19}/>{t('overview')}<ChevronRight className="nav-chevron" size={16}/>
           </button>
-          {CATEGORIES.map(category => {
+          {CATEGORIES.filter(category => !['updates', 'tools'].includes(category)).map(category => {
             const Icon = categoryIcon[category];
             return <button key={category} className={`nav-entry ${currentSection === category ? 'active' : ''}`}
               onClick={() => scrollTo(category)}><Icon size={19}/>{t(sectionName[category])}</button>;
           })}
+          <button className={`nav-entry ${currentSection === 'tools-updates' ? 'active' : ''}`} onClick={() => scrollTo('tools-updates')}>
+            <Download size={19}/>Ferramentas e atualizações
+          </button>
           <button className={`nav-entry ${currentSection === 'execution' ? 'active' : ''}`} onClick={() => scrollTo('execution')}>
             <Activity size={19}/>{t('execution')}
           </button>
@@ -365,8 +377,7 @@ export default function App() {
           </button>
         </nav>
         <div className="sidebar-bottom">
-          <button className="settings-shortcut" onClick={() => setShowSettings(true)}><Settings2 size={16}/>{t('preferences')}</button>
-          <div className="sidebar-signature">v{bootstrap?.version || '2.0.0'}</div>
+          <div className="sidebar-signature">v{bootstrap?.version || '2.0.10'}</div>
         </div>
       </aside>
 
@@ -442,6 +453,17 @@ export default function App() {
           </div>
         </section>
 
+        <section className={`temperature-panel glass-panel ${showTemperatures ? 'expanded' : ''}`} aria-label="Temperaturas do hardware">
+          <button className="temperature-toggle" onClick={() => setShowTemperatures(value => !value)}><span><span className="overline">TEMPERATURAS</span><small>Telemetria de hardware</small></span><ChevronRight size={16}/></button>
+          {showTemperatures && ([
+            ['CPU', stats.temperatures.cpu], ['GPU', stats.temperatures.gpu],
+            ['Placa-mãe', stats.temperatures.motherboard], ['Memória RAM', stats.temperatures.memory]
+          ] as const).map(([name, value]) => <div className="temperature-reading" key={name}>
+            <span>{name}</span><strong>{value == null ? '—' : `${Math.round(value)}°C`}</strong>
+          </div>)}
+          {showTemperatures && Object.values(stats.temperatures).every(value => value == null) && <p className="temperature-empty">Instale e configure o Libre Hardware Monitor com WMI para exibir sensores reais.</p>}
+        </section>
+
         <section className="operations-head" id="maintenance">
           <div><div className="overline">{t('maintenance')}</div><h2>{t('operations')}</h2>
             <p>{t('operationsDescription')}</p></div>
@@ -458,13 +480,13 @@ export default function App() {
           </div>
         </div>
 
-        {CATEGORIES.map(category => {
+        {CATEGORIES.filter(category => !['updates', 'tools'].includes(category)).map(category => {
           const matching = TASKS.filter(task => task.group === category && showTask(task));
           if (category === 'tools' && !matching.length && filter) return null;
           if (!matching.length && filter) return null;
           const Icon = categoryIcon[category];
           return (
-            <section className="task-section" id={category} key={category}>
+            <section className="task-section" id={category === 'updates' ? 'tools-updates' : category} key={category}>
               <div className="section-title"><div className="group-icon"><Icon size={18}/></div>
                 <h3>{t(sectionName[category])}</h3><span className="group-count">{matching.length}</span></div>
               {matching.length > 0 && <div className="task-grid">
@@ -548,12 +570,37 @@ export default function App() {
           );
         })}
 
+        <section className="task-section tools-updates-section" id="tools-updates">
+          <div className="section-title"><div className="group-icon"><Download size={18}/></div>
+            <h3>Ferramentas e atualizações</h3></div>
+          <div className="compact-tabs" role="tablist" aria-label="Ferramentas e atualizações">
+            <button className={toolsUpdateTab === 'updates' ? 'active' : ''} onClick={() => setToolsUpdateTab('updates')}>Atualizações</button>
+            <button className={toolsUpdateTab === 'drivers' ? 'active' : ''} onClick={() => setToolsUpdateTab('drivers')}>Drivers</button>
+            <button className={toolsUpdateTab === 'external' ? 'active' : ''} onClick={() => setToolsUpdateTab('external')}>Ferramentas externas</button>
+          </div>
+          {toolsUpdateTab === 'drivers' && <div className="subpanel glass-panel driver-panel">
+            <div className="driver-head"><span className="driver-icon"><Download size={18}/></span><div><strong>{t('drivers')}</strong><p>{t('driversText')}</p></div></div>
+            <div className="driver-buttons"><button onClick={() => openSettings('drivers')}><ExternalLink size={14}/>{t('openDriverSettings')}</button><button onClick={() => openSettings('updates')}>{t('openWindowsUpdate')}<ArrowRight size={15}/></button></div>
+          </div>}
+          {toolsUpdateTab !== 'drivers' && <div className="task-grid">{TASKS.filter(task => task.group === (toolsUpdateTab === 'updates' ? 'updates' : 'tools') && showTask(task)).map(task => {
+            const IconForTask = icons[task.icon] || Activity;
+            const [title, description] = translateTask(lang, task.id);
+            return <label key={task.id} className={['task-card', 'glass-panel', selected.has(task.id) ? 'selected' : ''].join(' ')}>
+              <input type="checkbox" checked={selected.has(task.id)} disabled={running} onChange={() => toggleTask(task.id)} aria-label={title}/>
+              <div className="task-icon"><IconForTask size={18}/></div><div className="task-info"><div className="task-title-row"><strong>{title}</strong><span className={`task-check ${selected.has(task.id) ? 'checked' : ''}`}><Check size={11}/></span></div><p>{description}</p><div className="task-bottom"><code>{task.command}</code>{task.warning && <span className="risk-indicator"><AlertTriangle size={12}/>{t('sensitive')}</span>}</div></div>
+            </label>;
+          })}</div>}
+          {toolsUpdateTab === 'external' && <div className="info-hint"><Settings2 size={15}/>Configure RAMMap e Process Lasso em Configurações antes de usar integrações externas.</div>}
+        </section>
+
         <div className="bottom-note glass-panel"><LockKeyhole size={18}/><div><strong>{t('safeMode')}</strong><p>{t('safeText')}</p></div></div>
         <footer className="project-footer">
-          <span>© {new Date().getFullYear()} <a href="https://github.com/RaphaelTW" target="_blank" rel="noreferrer">RaphaelTW</a> · MIT</span>
+          <span>© {new Date().getFullYear()} <a href="https://github.com/RaphaelTW" target="_blank" rel="noreferrer">Raphael Laurentino</a> · MIT</span>
           <button onClick={() => void navigator.clipboard.writeText('c15b0dc5-808e-4b1b-aa90-6ff25ae1c0d9').then(() => setNotice('Chave PIX copiada.')).catch(() => setNotice('Não foi possível copiar a chave PIX.'))}>Apoie via PIX</button>
         </footer>
       </main>
+
+      {taskIds.length > 0 && !running && <div className="sticky-runbar"><span>{t('selectedCount', { n: taskIds.length })}</span><button className="button button-primary" onClick={runSelected}><Play size={14} fill="currentColor"/>{t('run')}</button></div>}
 
       <aside className="inspector" id="execution">
         <div className="inspector-top"><span className="overline">{t('activity')}</span><span className="live-indicator"><span/>LIVE</span></div>
@@ -587,17 +634,17 @@ export default function App() {
           }}><Square size={13}/>{t('stop')}</button>
           {results && <div className="result-line">{t('failedSummary', { ok: results.completed, fail: results.failed, skip: results.skipped })}</div>}
         </div>
-        <div className="log-panel glass-panel">
+        <div className={`log-panel glass-panel ${showLog ? 'expanded' : 'collapsed'}`}>
           <div className="panel-heading"><strong>{t('logTitle')}</strong>
-            <button className="link-button" onClick={async () => {
+            <div className="log-actions"><button className="link-button" onClick={() => setShowLog(value => !value)}>{showLog ? 'Recolher' : 'Abrir'}</button>{showLog && <button className="link-button" onClick={() => setShowRawLog(value => !value)}>{showRawLog ? 'Ver resumo' : 'Ver saída bruta'}</button>}<button className="link-button" onClick={async () => {
               try { if (await bridge.exportLog()) setNotice(t('saved')); }
               catch (error) { setNotice(t('error', { message: String(error) })); }
-            }}><FileText size={13}/>{t('export')}</button></div>
-          <div className="log-scroll" role="log" aria-live="off">
+            }}><FileText size={13}/>{t('export')}</button></div></div>
+          {showLog && <div className="log-scroll" role="log" aria-live="off">
             {!logs.length && <div className="log-empty"><Activity size={20}/>{t('noLog')}</div>}
-            {logs.map(entry => <div className="log-row" key={entry.id}><span className="log-bullet"/> <span>{entry.content}</span></div>)}
+            {logs.map(entry => <div className="log-row" key={entry.id}><span className="log-bullet"/> <span>{showRawLog ? entry.raw : entry.content}</span></div>)}
             <div ref={logEnd}/>
-          </div>
+          </div>}
         </div>
         <div className="inspector-note"><ShieldCheck size={14}/>{t('localLog')}</div>
       </aside>
@@ -645,6 +692,13 @@ export default function App() {
           <label className="settings-language"><span>{t('language')}</span><select value={lang} onChange={event => setLang(event.target.value as Language)}>
             <option value="pt">{t('langPt')}</option><option value="en">{t('langEn')}</option><option value="es">{t('langEs')}</option><option value="ru">{t('langRu')}</option><option value="zh">{t('langZh')}</option>
           </select></label>
+          <div className="settings-tools">{(['rammap', 'lasso'] as const).map(tool => { const path = tool === 'rammap' ? bootstrap?.preferences.rammapPath : bootstrap?.preferences.lassoPath; return <div key={tool}><strong>{t(tool)}</strong><span>{path?.split(/[\\/]/).pop() || t('notConfigured')}</span><button onClick={() => chooseTool(tool)}>{t('selectExe')}</button></div>; })}</div>
+          <div className={`hardware-monitor ${hardwareMonitor?.detected ? 'detected' : ''}`}>
+            <strong>Libre Hardware Monitor</strong><span>{hardwareMonitor?.detected ? 'Detectado via WMI' : 'Não detectado'}</span>
+            <p>Abra o Libre Hardware Monitor e habilite o servidor WMI para exibir temperaturas reais.</p>
+            <small>Última verificação: {hardwareMonitor ? new Date(hardwareMonitor.checkedAt).toLocaleString() : '—'}</small>
+            <a href="https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases" target="_blank" rel="noreferrer">Baixar Libre Hardware Monitor</a>
+          </div>
         </section>
       </div>}
       {notice && <div className="toast" role="status"><AlertTriangle size={17}/>{notice}

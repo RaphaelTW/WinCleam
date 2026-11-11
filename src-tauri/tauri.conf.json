@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "WinCleam",
-  "version": "2.0.0",
-  "identifier": "com.raphaellaurentino.wincleam",
+  "version": "2.0.10",
+  "identifier": "com.raphael.laurentino.wincleam",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://127.0.0.1:1420",
